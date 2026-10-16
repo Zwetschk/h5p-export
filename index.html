@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>H5P-Export</title>
+<meta name="description" content="H5P-Dateien im Browser in ein offline nutzbares HTML5-Paket umwandeln. Die Datei verlässt Ihren Rechner nicht.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231a5fb4'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='14' font-weight='700' fill='white' text-anchor='middle'%3EH5P%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>H5P-Export</h1>
+    <p class="lead">Wandelt eine <code>.h5p</code>-Datei in ein HTML5-Paket um, das per Doppelklick im Browser läuft – ohne Server, ohne Internet.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="browser-warning" class="notice notice-error" hidden>
+    Dieser Browser ist zu alt. Bitte eine aktuelle Version von Chrome, Edge, Firefox oder Safari verwenden.
+  </div>
+
+  <p class="notice notice-info">
+    <strong>Datenschutz:</strong> Ihre Datei wird ausschließlich in Ihrem Browser verarbeitet und nicht hochgeladen.
+    Nur wenn das Nachladen vom H5P-Hub eingeschaltet ist und Bibliotheken fehlen, wird der <em>Name des Inhaltstyps</em>
+    (z.&nbsp;B. „H5P.Blanks“) bei <code>api.h5p.org</code> abgefragt.
+  </p>
+
+  <section class="card" aria-labelledby="conv-title">
+    <h2 id="conv-title">H5P → HTML5-Paket</h2>
+    <label class="dropzone" id="conv-drop">
+      <input type="file" id="conv-file" accept=".h5p,application/zip">
+      <span class="dz-text"><strong>.h5p-Datei wählen</strong> oder hierher ziehen</span>
+      <span class="dz-file"></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="conv-hub" checked>
+      Fehlende Bibliotheken vom H5P-Hub nachladen <span class="muted">(nur die aktuelle Version verfügbar)</span>
+    </label>
+    <div class="actions">
+      <button type="button" class="button button-primary" id="conv-run" disabled>Umwandeln</button>
+      <progress id="conv-progress" max="1" value="0" hidden></progress>
+    </div>
+    <div class="log" id="conv-log" role="log" aria-live="polite" hidden></div>
+    <div class="result" id="conv-result"></div>
+    <details>
+      <summary>Was ist im Ergebnis?</summary>
+      <p>Eine ZIP-Datei. Entpacken, dann <code>index.html</code> doppelklicken. Enthalten:</p>
+      <ul>
+        <li><code>index.html</code> – Startseite</li>
+        <li><code>h5p/</code> – Inhalt und Bibliotheken</li>
+        <li><code>player/</code> – der H5P-Player (h5p-standalone 3.8.2)</li>
+        <li><code>start.bat</code> / <code>start.command</code> – Start über einen lokalen Webserver, falls der Browser Dateien blockiert</li>
+      </ul>
+      <p>Fehlen der Datei Bibliotheken („Content-only“-Export), werden sie aus 63 mitgelieferten Inhaltstypen ergänzt.
+      H5P arbeitet versionsgenau: Es wird immer genau die Version verwendet, mit der der Inhalt erstellt wurde.</p>
+    </details>
+  </section>
+
+  <section class="card" aria-labelledby="patch-title">
+    <h2 id="patch-title">Lumi-Korrektur: Core-API senken</h2>
+    <p>Für die Lumi-Meldung <code>api-version-unsupported (current: 1.27, required: 1.28)</code>.
+      Erzeugt eine Kopie der .h5p-Datei, in der die geforderte Core-API-Version gesenkt ist. Der Inhalt bleibt unverändert.</p>
+    <label class="dropzone" id="patch-drop">
+      <input type="file" id="patch-file" accept=".h5p,application/zip">
+      <span class="dz-text"><strong>.h5p-Datei wählen</strong> oder hierher ziehen</span>
+      <span class="dz-file"></span>
+    </label>
+    <label class="inline">
+      Ziel-Version: 1.<input type="number" id="patch-minor" value="27" min="0" max="99">
+    </label>
+    <div class="actions">
+      <button type="button" class="button" id="patch-run" disabled>Kopie erzeugen</button>
+    </div>
+    <div class="log" id="patch-log" role="log" aria-live="polite" hidden></div>
+    <div class="result" id="patch-result"></div>
+  </section>
+</main>
+
+<footer class="wrap site-footer">
+  <p>H5P-Export (Web-Version). Mitgelieferte Software: <a href="https://github.com/tunapanda/h5p-standalone">h5p-standalone</a> (MIT)
+    und H5P-Bibliotheken von <a href="https://h5p.org">h5p.org</a> (jeweilige Lizenz in der library.json).
+    H5P ist eine Marke der H5P Group AS; dieses Werkzeug ist kein offizielles H5P-Angebot.</p>
+</footer>
+
+<script src="h5p-html.js"></script>
+<script src="zip.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
