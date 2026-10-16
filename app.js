@@ -13,6 +13,8 @@
   'use strict';
   const H = window.H5PHtml;
   const HUB = 'https://api.h5p.org/v1/content-types/';
+  const VERSION = window.H5P_EXPORT_VERSION || 'lokal';
+  const v = (url) => url + '?v=' + encodeURIComponent(VERSION); // Cache-Busting, siehe build.js
 
   const $ = (id) => document.getElementById(id);
   const folderName = (d) => d.machineName + '-' + d.majorVersion + '.' + d.minorVersion;
@@ -57,7 +59,7 @@
     readers: new Map(),
     async load() {
       if (!this.index) {
-        const res = await fetch('libs/index.json');
+        const res = await fetch(v('libs/index.json'));
         if (!res.ok) throw new Error('Bibliotheksverzeichnis nicht ladbar (HTTP ' + res.status + ').');
         this.index = await res.json();
       }
@@ -68,7 +70,7 @@
     async reader(folder) {
       if (!this.readers.has(folder)) {
         this.readers.set(folder, (async () => {
-          const res = await fetch('libs/' + encodeURIComponent(folder) + '.zip');
+          const res = await fetch(v('libs/' + encodeURIComponent(folder) + '.zip'));
           if (!res.ok) throw new Error('Bibliothek ' + folder + ' nicht ladbar (HTTP ' + res.status + ').');
           return ZipReader.open(await res.arrayBuffer());
         })());
@@ -224,6 +226,7 @@
     const base = baseNameOf(file);
     const root = base + '-html5/';
 
+    log('H5P-Export Web, Version ' + VERSION);
     log('1/4  Lese ' + file.name + ' (' + formatSize(file.size) + ') …');
     const upload = await ZipReader.open(await file.arrayBuffer());
     for (const n of upload.names()) {
@@ -289,7 +292,7 @@
         extra.push([z, n]);
       }
     }
-    const playerRes = await fetch('player.zip');
+    const playerRes = await fetch(v('player.zip'));
     if (!playerRes.ok) throw new Error('H5P-Player nicht ladbar (HTTP ' + playerRes.status + ').');
     const player = await ZipReader.open(await playerRes.arrayBuffer());
     const total = uploadNames.length + extra.length + H.PLAYER_FILES.length;
