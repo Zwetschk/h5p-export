@@ -91,7 +91,8 @@
             log('    enthält: ' + foldersIn(z).join(', '));
             return z;
           } catch (e) {
-            log('    nicht erreichbar: ' + e.message, 'warn');
+            // Der Hub sendet bei 404 keine CORS-Freigabe – der Browser meldet dann nur "Failed to fetch".
+            log('    kein eigenständiger Inhaltstyp im Hub (oder keine Verbindung)');
             return null;
           }
         })());
@@ -128,20 +129,26 @@
 
   /**
    * Ermittelt die komplette Bibliothekskette.
-   * Liefert { items: [{ folder, libJson, deps, source }], missing, hubOffers }.
+   * Liefert { items: [{ folder, libJson, deps, source }], missing, skipped, hubOffers }.
    * source: { kind: 'file'|'bundle'|'hub', zip? }
+   *
+   * Verbindlich sind nur h5p.json und die library.json-Abhängigkeiten. Treffer, die
+   * NUR in content.json stehen, sind optional – dort stehen auch Kennungen, die keine
+   * Bibliotheken sind (z. B. "H5P.DragQuestionDropzone 0.1" bei Drag and Drop).
    */
   async function resolveDependencies(upload, h5pJson, contentRaw, useHub, log) {
     const seen = new Set();
     const items = [];
     const missing = [];
+    const skipped = [];
     const hubOffers = new Map();
-    const contentTypes = [h5pJson.mainLibrary, ...contentLibraries(contentRaw).map((d) => d.machineName)];
 
-    async function findInHub(folder) {
+    // parents: Inhaltstypen, über die diese Bibliothek gebraucht wird. Deren Hub-Pakete
+    // enthalten die Abhängigkeit – so wird nur gezielt nachgeladen.
+    async function findInHub(folder, parents) {
       for (const z of await hub.all()) if (z.has(folder + '/library.json')) return z;
-      // Erst den Inhaltstyp selbst, dann alle Inhaltstypen der Datei (deren Pakete enthalten die Abhängigkeiten).
-      for (const name of [machineNameOf(folder), ...contentTypes]) {
+      const names = [...new Set([machineNameOf(folder), ...parents.slice().reverse(), h5pJson.mainLibrary])];
+      for (const name of names) {
         const z = await hub.get(name, log);
         if (!z) continue;
         for (const f of foldersIn(z)) {
@@ -154,10 +161,11 @@
       return null;
     }
 
-    async function load(dep) {
+    async function load(dep, optional, parents) {
       const folder = folderName(dep);
       if (seen.has(folder)) return;
       seen.add(folder);
+      const notFound = () => (optional ? skipped : missing).push(folder);
       let libJson, source;
       if (upload.has(folder + '/library.json')) {
         libJson = await upload.json(folder + '/library.json');
@@ -167,13 +175,13 @@
         source = { kind: 'bundle' };
         log('  + aus mitgelieferten Bibliotheken: ' + folder);
       } else if (useHub) {
-        const z = await findInHub(folder);
-        if (!z) { missing.push(folder); return; }
+        const z = await findInHub(folder, parents);
+        if (!z) { notFound(); return; }
         libJson = await z.json(folder + '/library.json');
         source = { kind: 'hub', zip: z };
         log('  + vom H5P-Hub: ' + folder, 'ok');
       } else {
-        missing.push(folder);
+        notFound();
         return;
       }
       const deps = [];
@@ -181,12 +189,13 @@
         for (const d of libJson[key] || []) deps.push(d);
       }
       items.push({ folder, libJson, deps: deps.map(folderName), source });
-      for (const d of deps) await load(d);
+      for (const d of deps) await load(d, optional, [...parents, dep.machineName]);
     }
 
-    for (const d of h5pJson.preloadedDependencies || []) await load(d);
-    for (const d of contentLibraries(contentRaw)) await load(d);
-    return { items, missing, hubOffers };
+    // Erst alle verbindlichen Abhängigkeiten, danach die optionalen Treffer aus content.json.
+    for (const d of h5pJson.preloadedDependencies || []) await load(d, false, []);
+    for (const d of contentLibraries(contentRaw)) await load(d, true, []);
+    return { items, missing, skipped, hubOffers };
   }
 
   /** Topologische Sortierung: Abhängigkeiten zuerst. */
@@ -233,7 +242,10 @@
     if (!mainDep) throw new Error('Hauptbibliothek "' + h5pJson.mainLibrary + '" nicht gefunden.');
     log('  Inhaltstyp: ' + mainDep.machineName + ' ' + mainDep.majorVersion + '.' + mainDep.minorVersion);
 
-    const { items, missing, hubOffers } = await resolveDependencies(upload, h5pJson, contentRaw, useHub, log);
+    const { items, missing, skipped, hubOffers } = await resolveDependencies(upload, h5pJson, contentRaw, useHub, log);
+    if (skipped.length) {
+      log('  Hinweis: in content.json genannt, aber nicht als Bibliothek vorhanden (übersprungen): ' + skipped.join(', '));
+    }
     if (missing.length) {
       const lines = ['Es fehlen ' + missing.length + ' Bibliothek(en):'];
       for (const f of missing) {
