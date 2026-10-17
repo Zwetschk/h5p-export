@@ -239,7 +239,10 @@
 
   async function convert(file, useHub, log, setProgress) {
     const base = baseNameOf(file);
-    const root = base + '-html5/';
+    // Kein Hauptordner in der ZIP: Der Windows-Explorer legt beim Entpacken ohnehin einen
+    // Ordner mit dem ZIP-Namen an – ein zweiter gleichnamiger Ordner würde die Pfade nur
+    // verlängern (Windows-Grenze 260 Zeichen, Fehler "Pfad zu lang").
+    const root = '';
 
     log('H5P-Export Web, Version ' + VERSION);
     log('1/4  Lese ' + file.name + ' (' + formatSize(file.size) + ') …');
@@ -317,10 +320,16 @@
 
     for (const n of uploadNames) { await out.add(root + 'h5p/' + n, await upload.bytes(n)); tick(); }
     for (const [z, n] of extra) { await out.add(root + 'h5p/' + n, await z.bytes(n)); tick(); }
-    for (const f of H.PLAYER_FILES) {
+    for (const f of H.PLAYER_FILES.map(H.playerTarget)) {
       if (!player.has(f)) throw new Error('Im Player fehlt: ' + f);
       await out.add(root + 'player/' + f, await player.bytes(f));
       tick();
+    }
+    // Hinweis bei sehr langen Pfaden im Inhalt (z. B. lange Bild-Dateinamen).
+    const longest = uploadNames.concat(extra.map(([, n]) => n)).reduce((a, n) => (n.length > a.length ? n : a), '');
+    if (longest.length + 4 > 140) {
+      log('  Hinweis: sehr langer Dateipfad im Paket (' + (longest.length + 4) + ' Zeichen). Beim Entpacken unter Windows', 'warn');
+      log('  möglichst einen kurzen Zielordner wählen (z. B. C:\\h5p\\), sonst meldet der Explorer „Pfad zu lang".', 'warn');
     }
 
     log('4/4  Erzeuge index.html …');

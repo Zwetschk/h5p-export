@@ -38,6 +38,22 @@
     'images/throbber.gif'
   ];
 
+  // Die Schriften des Players haben sehr lange Namen (bis 137 Zeichen inkl. Pfad).
+  // Zusammen mit einem langen Zielordner überschreiten sie die 260-Zeichen-Grenze
+  // des Windows-Explorers ("Pfad zu lang"). Im Paket bekommen sie daher kurze Namen,
+  // z. B. "open-sans-v40-cyrillic_…_vietnamese-600italic.woff2" -> "open-sans-600italic.woff2".
+  const LONG_FONT = /(open-sans|inter)-v\d+-[a-z0-9_-]+?-(\d{3}italic|\d{3}|regular|italic)\.woff2/g;
+
+  /** Dateiname im Paket für eine Player-Datei (kurze Schriftnamen). */
+  function playerTarget(file) {
+    return file.replace(LONG_FONT, '$1-$2.woff2');
+  }
+
+  /** Passt Schriftverweise in den Player-CSS-Dateien an die kurzen Namen an. */
+  function rewritePlayerCss(css) {
+    return css.replace(LONG_FONT, '$1-$2.woff2');
+  }
+
   // ---------------------------------------------------------------- Sicherheit
 
   /**
@@ -370,7 +386,7 @@
   }
 
   return {
-    PLAYER_VERSION, PLAYER_FILES, safeEntryName, escapeHtml, scriptJson, phpRegexToJs, addonApplies,
+    PLAYER_VERSION, PLAYER_FILES, playerTarget, rewritePlayerCss, safeEntryName, escapeHtml, scriptJson, phpRegexToJs, addonApplies,
     L10N_EN, L10N_DE, l10nFor, buildMetadata, hasRightsInfo, buildIndexHtml,
     startBat, startCommand, packageReadme
   };
