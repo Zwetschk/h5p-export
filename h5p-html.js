@@ -68,6 +68,45 @@
       .split(PS).join('\\u2029');
   }
 
+  // ---------------------------------------------------------------- Add-ons (z. B. H5P.MathDisplay)
+
+  /** Wandelt einen PHP-Regex ("/muster/flags", wie in library.json) in einen JS-RegExp um. */
+  function phpRegexToJs(src) {
+    const m = /^([^a-zA-Z0-9\\\s])([\s\S]*)\1([a-zA-Z]*)$/.exec(String(src));
+    if (!m) return null;
+    try { return new RegExp(m[2], m[3].replace(/[^imsu]/g, '')); } catch (e) { return null; }
+  }
+
+  function collectStrings(value, out) {
+    if (typeof value === 'string') out.push(value);
+    else if (Array.isArray(value)) value.forEach((v) => collectStrings(v, out));
+    else if (value && typeof value === 'object') Object.keys(value).forEach((k) => collectStrings(value[k], out));
+    return out;
+  }
+
+  /**
+   * Wie die H5P-Plattform: Ein Add-on (library.json mit "addTo") wird dem Inhalt
+   * hinzugefügt, wenn sein Text-Muster auf einen Text im Inhalt passt.
+   * Beispiel: H5P.MathDisplay bei Formeln wie \( ... \), \[ ... \] oder $$ ... $$.
+   * Nur so werden Formeln dargestellt – die Plattform trägt das Add-on NICHT in
+   * die .h5p-Datei ein.
+   */
+  function addonApplies(libJson, contentJson) {
+    const types = libJson && libJson.addTo && libJson.addTo.content && libJson.addTo.content.types;
+    if (!Array.isArray(types)) return false;
+    let strings = null;
+    for (const t of types) {
+      const re = t && t.text && phpRegexToJs(t.text.regex);
+      if (!re) continue;
+      if (!strings) {
+        try { strings = collectStrings(typeof contentJson === 'string' ? JSON.parse(contentJson) : contentJson, []); }
+        catch (e) { return false; }
+      }
+      if (strings.some((s) => re.test(s))) return true;
+    }
+    return false;
+  }
+
   // ---------------------------------------------------------------- Oberflächentexte (Kern)
 
   const L10N_EN = {
@@ -331,7 +370,7 @@
   }
 
   return {
-    PLAYER_VERSION, PLAYER_FILES, safeEntryName, escapeHtml, scriptJson,
+    PLAYER_VERSION, PLAYER_FILES, safeEntryName, escapeHtml, scriptJson, phpRegexToJs, addonApplies,
     L10N_EN, L10N_DE, l10nFor, buildMetadata, hasRightsInfo, buildIndexHtml,
     startBat, startCommand, packageReadme
   };

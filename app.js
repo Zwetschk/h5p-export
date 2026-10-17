@@ -197,7 +197,22 @@
     // Erst alle verbindlichen Abhängigkeiten, danach die optionalen Treffer aus content.json.
     for (const d of h5pJson.preloadedDependencies || []) await load(d, false, []);
     for (const d of contentLibraries(contentRaw)) await load(d, true, []);
-    return { items, missing, skipped, hubOffers };
+
+    // Add-ons (z. B. H5P.MathDisplay für Formeln) – wie auf einer H5P-Plattform ergänzen.
+    // Kandidaten: Bibliotheken mit "addTo" in der Datei und im mitgelieferten Bestand.
+    const candidates = [];
+    for (const f of foldersIn(upload)) candidates.push(await upload.json(f + '/library.json'));
+    for (const f of Object.keys(bundled.index || {})) candidates.push(bundled.libJson(f));
+    const addons = [];
+    for (const lj of candidates) {
+      if (!lj || !lj.addTo || addons.some((a) => a.startsWith(lj.machineName + '-'))) continue;
+      if (H.addonApplies(lj, contentRaw)) {
+        const dep = { machineName: lj.machineName, majorVersion: lj.majorVersion, minorVersion: lj.minorVersion };
+        addons.push(folderName(dep));
+        await load(dep, false, []);
+      }
+    }
+    return { items, missing, skipped, addons, hubOffers };
   }
 
   /** Topologische Sortierung: Abhängigkeiten zuerst. */
@@ -245,7 +260,8 @@
     if (!mainDep) throw new Error('Hauptbibliothek "' + h5pJson.mainLibrary + '" nicht gefunden.');
     log('  Inhaltstyp: ' + mainDep.machineName + ' ' + mainDep.majorVersion + '.' + mainDep.minorVersion);
 
-    const { items, missing, skipped, hubOffers } = await resolveDependencies(upload, h5pJson, contentRaw, useHub, log);
+    const { items, missing, skipped, addons, hubOffers } = await resolveDependencies(upload, h5pJson, contentRaw, useHub, log);
+    if (addons.length) log('  Add-on ergänzt (wie auf der H5P-Plattform): ' + addons.join(', '));
     if (skipped.length) {
       log('  Hinweis: in content.json genannt, aber nicht als Bibliothek vorhanden (übersprungen): ' + skipped.join(', '));
     }
